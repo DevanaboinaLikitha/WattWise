@@ -46,6 +46,29 @@ services:
     volumes:
       - kafkadata:/var/lib/kafka/data
 
+  spark-master:
+    image: apache/spark:3.5.3
+    container_name: wattwise-spark-master
+    restart: unless-stopped
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    ports:
+      - "7077:7077"
+      - "8080:8080"
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+
+  spark-worker:
+    image: apache/spark:3.5.3
+    container_name: wattwise-spark-worker
+    restart: unless-stopped
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+    ports:
+      - "8081:8081"
+
 volumes:
   pgdata:
   seaweeddata:
