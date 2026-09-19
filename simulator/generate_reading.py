@@ -1,9 +1,9 @@
 import random
 import json
+import time
 from datetime import datetime, timezone
 from kafka import KafkaProducer
 
-# Each location has a realistic "normal" power range (min_kw, max_kw)
 LOCATION_PROFILES = {
     "Room-101":     (0.5, 2.0),
     "Room-102":     (0.5, 2.0),
@@ -15,12 +15,11 @@ LOCATION_PROFILES = {
 ANOMALY_PROBABILITY = 0.05
 KAFKA_BROKER = "localhost:9092"
 KAFKA_TOPIC = "energy-readings"
+SEND_INTERVAL_SECONDS = 3
 
 def generate_reading():
-    """Creates one fake smart-meter reading as a dictionary."""
     location = random.choice(list(LOCATION_PROFILES.keys()))
     min_kw, max_kw = LOCATION_PROFILES[location]
-
     is_anomaly = random.random() < ANOMALY_PROBABILITY
 
     if is_anomaly:
@@ -36,7 +35,6 @@ def generate_reading():
     }
 
 def create_producer():
-    """Creates and returns a Kafka producer connected to our broker."""
     return KafkaProducer(
         bootstrap_servers=KAFKA_BROKER,
         value_serializer=lambda v: json.dumps(v).encode("utf-8")
@@ -44,10 +42,19 @@ def create_producer():
 
 if __name__ == "__main__":
     producer = create_producer()
-    reading = generate_reading()
+    print(f"Starting simulator - sending a reading every {SEND_INTERVAL_SECONDS} seconds.")
+    print("Press Ctrl+C to stop.\n")
 
-    producer.send(KAFKA_TOPIC, value=reading)
-    producer.flush()  # ensures the message is actually sent before the script exits
+    try:
+        while True:
+            reading = generate_reading()
+            producer.send(KAFKA_TOPIC, value=reading)
+            producer.flush()
 
-    print("Sent to Kafka:")
-    print(json.dumps(reading, indent=2))
+            flag = " <-- ANOMALY" if reading["is_anomaly_injected"] else ""
+            print(f"Sent: {reading['location']:12s} {reading['power_kw']:6.2f} kW{flag}")
+
+            time.sleep(SEND_INTERVAL_SECONDS)
+    except KeyboardInterrupt:
+        print("\nSimulator stopped.")
+        producer.close()
